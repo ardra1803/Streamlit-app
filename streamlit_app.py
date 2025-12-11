@@ -34,10 +34,14 @@ try:
     scaler = joblib.load("scaler.pkl")
     st.success("scaler.pkl loaded!")
 
-    # Load delay feature column order
+    # Load feature column orders
     st.write("Loading delay_feature_columns.pkl ...")
     delay_feature_columns = joblib.load("delay_feature_columns.pkl")
     st.success("delay_feature_columns loaded!")
+
+    st.write("Loading demand_feature_columns.pkl ...")
+    demand_feature_columns = joblib.load("demand_feature_columns.pkl")
+    st.success("demand_feature_columns loaded!")
 
 except Exception as e:
     st.error("❌ Error while loading models/data")
@@ -119,8 +123,14 @@ except Exception as e:
 st.header("Demand Forecast")
 
 try:
-    # Use input_df as-is for XGBoost
-    demand_pred = demand_model.predict(input_df)[0]
+    # Reorder input according to demand_feature_columns
+    # Fill missing columns (like lag features) with 0 if not present
+    for col in demand_feature_columns:
+        if col not in input_df.columns:
+            input_df[col] = 0
+
+    input_demand = input_df[demand_feature_columns]
+    demand_pred = demand_model.predict(input_demand)[0]
     st.write("Predicted Demand:", demand_pred)
 
 except Exception as e:
