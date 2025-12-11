@@ -2,78 +2,34 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import traceback
-import os
 
-st.title("AI-Powered Supply Chain Dashboard (Debug Mode Enabled)")
+st.title("AI-Powered Supply Chain Dashboard")
 
-# ------------------------------------------------------------
-# DEBUG BLOCK → Shows errors instead of blank screen
-# ------------------------------------------------------------
-st.subheader("Debug Info")
+# ---------------- Load Data and Models ----------------
+df = pd.read_csv("processed_data.csv")
+delay_model = joblib.load("delay_model.pkl")
+demand_model = joblib.load("demand_model.pkl")
+scaler = joblib.load("scaler.pkl")
+delay_feature_columns = joblib.load("delay_feature_columns.pkl")
+demand_feature_columns = joblib.load("demand_feature_columns.pkl")
 
-try:
-    st.write("📁 Files in working directory:", os.listdir())
-
-    # Load data
-    st.write("Loading processed_data.csv ...")
-    df = pd.read_csv("processed_data.csv")
-    st.success("processed_data.csv loaded successfully!")
-
-    # Load models
-    st.write("Loading delay_model.pkl ...")
-    delay_model = joblib.load("delay_model.pkl")
-    st.success("delay_model.pkl loaded!")
-
-    st.write("Loading demand_model.pkl ...")
-    demand_model = joblib.load("demand_model.pkl")
-    st.success("demand_model.pkl loaded!")
-
-    # Load scaler
-    st.write("Loading scaler.pkl ...")
-    scaler = joblib.load("scaler.pkl")
-    st.success("scaler.pkl loaded!")
-
-    # Load feature column orders
-    st.write("Loading delay_feature_columns.pkl ...")
-    delay_feature_columns = joblib.load("delay_feature_columns.pkl")
-    st.success("delay_feature_columns loaded!")
-
-    st.write("Loading demand_feature_columns.pkl ...")
-    demand_feature_columns = joblib.load("demand_feature_columns.pkl")
-    st.success("demand_feature_columns loaded!")
-
-except Exception as e:
-    st.error("❌ Error while loading models/data")
-    st.code(str(e))
-    st.code(traceback.format_exc())
-    st.stop()
-
-# ------------------------------------------------------------
-# MAIN APP
-# ------------------------------------------------------------
+# ---------------- Key Metrics ----------------
 st.header("Key Metrics")
 st.metric("Total Assets", len(df))
 
 # ---------------- Delay Prediction ----------------
-try:
-    features = df[delay_feature_columns]
-    features_scaled = scaler.transform(features)
-    df["Predicted_Delay"] = delay_model.predict(features_scaled)
-    st.metric("Predicted Delays", df["Predicted_Delay"].sum())
-except Exception as e:
-    st.error("❌ Error in delay prediction block")
-    st.code(traceback.format_exc())
-    st.stop()
+features = df[delay_feature_columns]
+features_scaled = scaler.transform(features)
+df["Predicted_Delay"] = delay_model.predict(features_scaled)
+st.metric("Predicted Delays", df["Predicted_Delay"].sum())
 
 # Assets to restock
 restock_df = df[df["Inventory_Level"] < df["Demand_Forecast"]]
 st.metric("Assets to Restock", len(restock_df))
 
-# ---------------- Shipment Delay Section ----------------
+# ---------------- Shipment Delay Prediction ----------------
 st.header("Shipment Delay Prediction")
 
-# Input fields
 latitude = st.number_input("Latitude", value=12.9716)
 longitude = st.number_input("Longitude", value=77.5946)
 inventory = st.number_input("Inventory Level", value=45)
@@ -104,38 +60,27 @@ input_df = pd.DataFrame([{
     "Asset_ID_enc": asset_id
 }])
 
-# ---------------- Predict Shipment Delay ----------------
-try:
-    input_delay = input_df[delay_feature_columns]
-    input_scaled = scaler.transform(input_delay)
-    delay_pred = delay_model.predict(input_scaled)[0]
-    delay_prob = delay_model.predict_proba(input_scaled)[0]
+# Predict Shipment Delay
+input_delay = input_df[delay_feature_columns]
+input_scaled = scaler.transform(input_delay)
+delay_pred = delay_model.predict(input_scaled)[0]
+delay_prob = delay_model.predict_proba(input_scaled)[0]
 
-    st.write("Predicted Logistics Delay:", delay_pred)
-    st.write("Probability of No Delay:", delay_prob[0])
-    st.write("Probability of Delay:", delay_prob[1])
-
-except Exception as e:
-    st.error("❌ Error in shipment prediction block")
-    st.code(traceback.format_exc())
+st.write("Predicted Logistics Delay:", delay_pred)
+st.write("Probability of No Delay:", delay_prob[0])
+st.write("Probability of Delay:", delay_prob[1])
 
 # ---------------- Demand Forecast ----------------
 st.header("Demand Forecast")
 
-try:
-    # Reorder input according to demand_feature_columns
-    # Fill missing columns (like lag features) with 0 if not present
-    for col in demand_feature_columns:
-        if col not in input_df.columns:
-            input_df[col] = 0
+# Fill missing columns for XGBoost input
+for col in demand_feature_columns:
+    if col not in input_df.columns:
+        input_df[col] = 0
 
-    input_demand = input_df[demand_feature_columns]
-    demand_pred = demand_model.predict(input_demand)[0]
-    st.write("Predicted Demand:", demand_pred)
-
-except Exception as e:
-    st.error("❌ Error in demand forecast block")
-    st.code(traceback.format_exc())
+input_demand = input_df[demand_feature_columns]
+demand_pred = demand_model.predict(input_demand)[0]
+st.write("Predicted Demand:", demand_pred)
 
 # ---------------- Dashboard Tables ----------------
 st.header("Inventory Overview")
@@ -155,3 +100,4 @@ st.line_chart(df[["Inventory_Level","Demand_Forecast"]])
 
 st.subheader("Predicted Delays Distribution")
 st.bar_chart(df["Predicted_Delay"].value_counts())
+
